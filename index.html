@@ -296,10 +296,18 @@ function saveToSheets(payload) {
 
 // ── Excel upload ──
 function excelDateStr(v) {
-  if(!v) return null;
-  if(typeof v==='string' && v.match(/\d{4}-\d{2}-\d{2}/)) return v.slice(0,10);
-  const n = parseFloat(v); if(isNaN(n)) return null;
-  const d = new Date((n-25569)*86400000);
+  if(!v && v !== 0) return null;
+  // Already ISO yyyy-mm-dd
+  if(typeof v==='string' && v.match(/^\d{4}-\d{2}-\d{2}/)) return v.slice(0,10);
+  if(typeof v==='string') {
+    const d = new Date(v);
+    if(!isNaN(d.getTime()) && d.getFullYear() > 1970) return d.toISOString().slice(0,10);
+    return null;
+  }
+  // Raw Excel serial (e.g. 46062 = 2026-02-09)
+  const n = parseFloat(v);
+  if(isNaN(n) || n < 40000) return null; // valid range: ~2009-2040
+  const d = new Date(Math.round((n - 25569) * 86400000));
   return isNaN(d.getTime()) ? null : d.toISOString().slice(0,10);
 }
 function addDays(ds, days) {
@@ -315,42 +323,46 @@ document.getElementById('fileInput').addEventListener('change', e => {
     try {
       const wb = XLSX.read(ev.target.result, {type:'array'});
 
-      // New store: junk row1, header row2, data row3+
+      // New store: row0=junk, row1=header, row2+=data
+      // cols: 0=StoreNo, 1=NameEng, 2=NameThai, 3=GrandOpening(serial), 4=Status, 6=Group
       const newStores = (() => {
         const ws = wb.Sheets['New store']; if(!ws) return [];
-        const raw = XLSX.utils.sheet_to_json(ws, {raw:false,dateNF:'yyyy-mm-dd',defval:'',header:1});
+        const raw = XLSX.utils.sheet_to_json(ws, {raw:true,defval:'',header:1});
         return raw.slice(2).map(r => {
-          if(!r[0]||isNaN(Number(r[0]))) return null;
+          const storeNo = Number(r[0]);
+          if(!storeNo || storeNo < 100) return null;
           const go = excelDateStr(r[3]); if(!go) return null;
-          return { store_no:String(r[0]), name:String(r[1]||'').trim(),
+          return { store_no:String(storeNo), name:String(r[1]||'').trim(),
             group_name:String(r[6]||'').trim(), show_date:addDays(go,-3),
             grand_opening:go, status:String(r[4]||'Active'), type:'open' };
         }).filter(Boolean);
       })();
 
-      // Renovate: header row1, data row2+
-      // col: 2=StoreNo,3=NameThai,4=Group,5=LastShip,7=CloseStatus,9=OpenStatus
+      // Renovate: row0=header, row1+=data
+      // cols: 0=No, 1=Reason, 2=StoreNo, 3=NameThai, 4=Group, 5=LastShip(serial), 7=CloseStatus, 9=OpenStatus
       const renovate = (() => {
         const ws = wb.Sheets['Renovate']; if(!ws) return [];
-        const raw = XLSX.utils.sheet_to_json(ws, {raw:false,dateNF:'yyyy-mm-dd',defval:'',header:1});
+        const raw = XLSX.utils.sheet_to_json(ws, {raw:true,defval:'',header:1});
         return raw.slice(1).map(r => {
-          if(!r[2]||isNaN(Number(r[2]))) return null;
+          const storeNo = Number(r[2]);
+          if(!storeNo || storeNo < 100) return null;
           const ls = excelDateStr(r[5]); if(!ls) return null;
-          return { store_no:String(r[2]), name:String(r[3]||'').trim(),
+          return { store_no:String(storeNo), name:String(r[3]||'').trim(),
             group_name:String(r[4]||'').trim(), show_date:ls,
             close_status:String(r[7]||''), open_status:String(r[9]||''), type:'reno' };
         }).filter(Boolean);
       })();
 
-      // Close: header row1, data row2+
-      // col: 2=StoreNo,3=NameThai,4=Group,5=LastShip,7=Status
+      // Close: row0=header, row1+=data
+      // cols: 0=No, 1=Reason, 2=StoreNo, 3=NameThai, 4=Group, 5=LastShip(serial), 7=Status
       const close = (() => {
         const ws = wb.Sheets['Close']; if(!ws) return [];
-        const raw = XLSX.utils.sheet_to_json(ws, {raw:false,dateNF:'yyyy-mm-dd',defval:'',header:1});
+        const raw = XLSX.utils.sheet_to_json(ws, {raw:true,defval:'',header:1});
         return raw.slice(1).map(r => {
-          if(!r[2]||isNaN(Number(r[2]))) return null;
+          const storeNo = Number(r[2]);
+          if(!storeNo || storeNo < 100) return null;
           const ls = excelDateStr(r[5]); if(!ls) return null;
-          return { store_no:String(r[2]), name:String(r[3]||'').trim(),
+          return { store_no:String(storeNo), name:String(r[3]||'').trim(),
             group_name:String(r[4]||'').trim(), show_date:ls,
             status:String(r[7]||''), type:'close' };
         }).filter(Boolean);
@@ -358,7 +370,7 @@ document.getElementById('fileInput').addEventListener('change', e => {
 
       storeData = parseSheetData({ new_stores:newStores, renovate, close });
       renderCalendar();
-      showToast('Parsed '+newStores.length+' opens \xb7 '+renovate.length+' renovate \xb7 '+close.length+' close \u2014 saving\u2026');
+      showToast('Parsed '+newStores.length+' opens · '+renovate.length+' renovate · '+close.length+' close — saving…');
       saveToSheets({ new_stores:newStores, renovate, close });
     } catch(err) { showToast('Error: '+err.message, true); }
   };
