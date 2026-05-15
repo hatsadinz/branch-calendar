@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Branch Calendar 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --pink:#F2A7C3;--pink-lt:#FAD0E8;--pink-dk:#82235A;
+  --mint:#A8DFCA;--mint-lt:#C8EFE3;--mint-dk:#0F5C40;
+  --amber:#F5C97A;--amber-lt:#FDE8B0;--amber-dk:#6B4208;
+  --bg:#FFFFFF;--surface:#FFFFFF;--border:#E8E0EC;
+  --text:#2D1B2E;--muted:#9E849F;
+  --radius:10px;--radius-lg:16px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.page{max-width:900px;margin:0 auto;padding:2rem 1.25rem 3rem}
+
+/* header */
+header{display:flex;align-items:center;gap:12px;margin-bottom:1.75rem;flex-wrap:wrap}
+.logo{font-size:15px;font-weight:500;color:var(--text);display:flex;align-items:center;gap:8px;flex:1;min-width:160px}
+.live-pip{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace}
+.pip{width:6px;height:6px;border-radius:50%;background:var(--mint-dk);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.upload-label{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.upload-label:hover{border-color:var(--pink);background:var(--pink-lt)}
+.upload-label.saving{opacity:.6;pointer-events:none}
+#fileInput{display:none}
+
+/* controls */
+.controls{display:flex;align-items:center;gap:8px;margin-bottom:1.1rem;flex-wrap:wrap}
+.filter-group{display:flex;gap:4px}
+.fbtn{padding:5px 14px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .15s}
+.fbtn:hover{border-color:var(--pink);color:var(--pink-dk)}
+.fbtn.on.fall{background:var(--pink-lt);border-color:var(--pink);color:var(--pink-dk);font-weight:500}
+.fbtn.on.fg1{background:var(--mint-lt);border-color:var(--mint);color:var(--mint-dk);font-weight:500}
+.fbtn.on.fg2{background:var(--amber-lt);border-color:var(--amber);color:var(--amber-dk);font-weight:500}
+.sp{flex:1}
+.nav{display:flex;align-items:center;gap:5px}
+.nbtn{border:1px solid var(--border);background:var(--surface);border-radius:var(--radius);padding:5px 11px;cursor:pointer;color:var(--muted);font-size:13px;line-height:1.5;transition:all .15s}
+.nbtn:hover{border-color:var(--pink);color:var(--pink-dk)}
+.month-lbl{font-size:15px;font-weight:500;color:var(--text);min-width:148px;text-align:center}
+.today-btn{border:1px solid var(--border);background:var(--surface);border-radius:var(--radius);padding:5px 13px;cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif;color:var(--muted);transition:all .15s}
+.today-btn:hover{border-color:var(--pink);background:var(--pink-lt);color:var(--pink-dk)}
+
+/* summary */
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:1.25rem}
+.scard{background:#FAFAFA;border:1px solid var(--border);border-radius:var(--radius-lg);padding:.8rem 1.1rem;text-align:center}
+.snum{font-size:24px;font-weight:500;font-family:'DM Mono',monospace}
+.slbl{font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.03em}
+.scard.so .snum{color:var(--mint-dk)}
+.scard.sc .snum{color:var(--pink-dk)}
+.scard.sr .snum{color:var(--amber-dk)}
+
+/* legend */
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:.85rem}
+.leg{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)}
+.ldot{width:8px;height:8px;border-radius:50%}
+
+/* calendar */
+.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.dh{text-align:center;font-size:10px;color:var(--muted);padding:4px 0;font-weight:500;letter-spacing:.05em;text-transform:uppercase}
+.dc{min-height:82px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);padding:5px;transition:border-color .15s}
+.dc.other{background:#F5F3F7;opacity:.6}
+.dc.today{border:1.5px solid var(--pink)}
+.dc.ev{cursor:pointer}
+.dc.ev:hover{border-color:var(--pink);background:var(--pink-lt)}
+.dtop{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:3px}
+.dnum{font-size:10px;color:var(--muted);font-weight:500;line-height:1.2;font-family:'DM Mono',monospace}
+.dc.today .dnum{color:var(--pink-dk)}
+.badge{font-size:9px;font-weight:500;background:var(--pink-lt);color:var(--pink-dk);border-radius:20px;padding:1px 6px;font-family:'DM Mono',monospace;opacity:0}
+.badge.show{opacity:1}
+.chip{display:block;border-radius:20px;font-size:8px;font-weight:500;padding:2px 6px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5}
+.co{background:#B2E8D4;color:#0A4A32}
+.cc{background:#F5BADB;color:#6E1548}
+.cr{background:#FAD878;color:#5A3A08}
+.cm{background:#E5DFE6;color:#6A5670}
+
+/* loading */
+.loading{text-align:center;padding:3rem;color:var(--muted);font-size:13px}
+.spinner{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--pink);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* modal */
+.overlay{position:fixed;inset:0;background:rgba(45,27,46,.3);display:flex;align-items:center;justify-content:center;z-index:200;padding:1rem;backdrop-filter:blur(2px)}
+.modal{background:var(--surface);border-radius:var(--radius-lg);padding:1.25rem;width:370px;max-width:100%;max-height:82vh;overflow-y:auto;border:1px solid var(--border);box-shadow:0 8px 32px rgba(45,27,46,.12)}
+.mhdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px}
+.mdate{font-size:14px;font-weight:500;color:var(--text)}
+.mclose{border:none;background:none;cursor:pointer;color:var(--muted);font-size:20px;line-height:1;padding:0}
+.mclose:hover{color:var(--pink-dk)}
+.msec-title{font-size:10px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin:12px 0 6px}
+.mitem{border-radius:var(--radius);padding:8px 10px;margin-bottom:4px}
+.mitem.mo{background:var(--mint-lt)}
+.mitem.mc{background:var(--pink-lt)}
+.mitem.mr{background:var(--amber-lt)}
+.mname{font-size:12px;font-weight:500;color:var(--text)}
+.mmeta{font-size:10px;color:var(--muted);margin-top:2px;font-family:'DM Mono',monospace}
+.mtag{display:inline-block;border-radius:20px;font-size:9px;padding:2px 7px;margin-top:4px;margin-right:3px}
+.tgo{background:var(--mint);color:var(--mint-dk)}
+.tcd{background:var(--pink);color:var(--pink-dk)}
+.tcp{background:#e8e1e8;color:var(--muted)}
+.trd{background:var(--amber);color:var(--amber-dk)}
+.tro{background:var(--mint);color:var(--mint-dk)}
+.trp{background:#e8e1e8;color:var(--muted)}
+
+/* sync status */
+.sync-bar{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-bottom:.75rem;font-family:'DM Mono',monospace}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:var(--mint-dk)}
+.sync-dot.syncing{background:var(--amber-dk);animation:pulse 1s ease-in-out infinite}
+.sync-dot.error{background:var(--pink-dk)}
+
+/* toast */
+.toast{position:fixed;bottom:20px;right:20px;background:var(--mint-dk);color:#fff;padding:9px 16px;border-radius:var(--radius);font-size:12px;z-index:300;opacity:0;transform:translateY(6px);transition:all .25s;pointer-events:none}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.err{background:var(--pink-dk)}
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="logo">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="1" y="3" width="20" height="18" rx="3" stroke="#F2A7C3" stroke-width="1.5"/><path d="M7 1v4M15 1v4M1 9h20" stroke="#F2A7C3" stroke-width="1.5" stroke-linecap="round"/><rect x="5" y="13" width="3" height="3" rx=".5" fill="#A8DFCA"/><rect x="9.5" y="13" width="3" height="3" rx=".5" fill="#F5C97A"/><rect x="14" y="13" width="3" height="3" rx=".5" fill="#F2A7C3"/></svg>
+      Branch Calendar 2026
+    </div>
+    <div class="live-pip"><span class="pip"></span>Live · Google Sheets</div>
+    <label class="upload-label" id="uploadLabel" for="fileInput">
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v8M3.5 4l3-3 3 3M1 10v1.5A.5.5 0 001.5 12h10a.5.5 0 00.5-.5V10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Upload Excel
+    </label>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+  </header>
+
+  <div class="sync-bar">
+    <span class="sync-dot" id="syncDot"></span>
+    <span id="syncStatus">Loading data from Google Sheets…</span>
+  </div>
+
+  <div class="controls">
+    <div class="filter-group">
+      <button class="fbtn on fall" data-f="all">All</button>
+      <button class="fbtn fg1" data-f="G1">G1</button>
+      <button class="fbtn fg2" data-f="G2">G2</button>
+    </div>
+    <div class="sp"></div>
+    <div class="nav">
+      <button class="nbtn" id="prevBtn">&#8249;</button>
+      <span class="month-lbl" id="monthLbl"></span>
+      <button class="nbtn" id="nextBtn">&#8250;</button>
+      <button class="today-btn" id="todayBtn">Today</button>
+    </div>
+  </div>
+
+  <div class="summary">
+    <div class="scard so"><div class="snum" id="sOpen">—</div><div class="slbl">New Opens</div></div>
+    <div class="scard sc"><div class="snum" id="sClose">—</div><div class="slbl">Closed</div></div>
+    <div class="scard sr"><div class="snum" id="sReno">—</div><div class="slbl">Renovating</div></div>
+  </div>
+
+  <div class="legend">
+    <div class="leg"><span class="ldot" style="background:var(--mint)"></span>New open</div>
+    <div class="leg"><span class="ldot" style="background:var(--pink)"></span>Closed</div>
+    <div class="leg"><span class="ldot" style="background:var(--amber)"></span>Renovate</div>
+  </div>
+
+  <div id="calWrap">
+    <div class="loading"><div class="spinner"></div>Loading…</div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" style="display:none">
+  <div class="modal">
+    <div class="mhdr">
+      <div class="mdate" id="mdate"></div>
+      <button class="mclose" id="mclose">&times;</button>
+    </div>
+    <div id="mbody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbw8zl-OvIpMbV83CgIsl2-uRXwaEWoBlJzU5c9djUql_5umX97-IFVVf-P895Bdj-vjSg/exec';
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const NOW = new Date();
+function fmtKey(y,m,d){return y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0')}
+const TODAY_KEY = fmtKey(NOW.getFullYear(), NOW.getMonth(), NOW.getDate());
+
+let storeData = { newStores:[], renovate:[], close:[] };
+let curY = 2026, curM = 4, filt = 'all';
+
+// ── Sync status ──
+function setSyncStatus(state, msg) {
+  const dot = document.getElementById('syncDot');
+  const txt = document.getElementById('syncStatus');
+  dot.className = 'sync-dot' + (state==='syncing'?' syncing':state==='error'?' error':'');
+  txt.textContent = msg;
+}
+
+// ── Load from Google Sheets ──
+async function loadFromSheets() {
+  setSyncStatus('syncing', 'Loading from Google Sheets…');
+  try {
+    const res = await fetch(GAS_URL);
+    const raw = await res.json();
+    storeData = parseSheetData(raw);
+    const now = new Date();
+    setSyncStatus('ok', 'Last synced: ' + now.toLocaleTimeString('en-GB'));
+    renderCalendar();
+  } catch(e) {
+    setSyncStatus('error', 'Failed to load — check connection');
+    showToast('Could not load data from Google Sheets', true);
+    renderCalendar();
+  }
+}
+
+// ── Parse raw sheet data ──
+function normalizeDate(v) {
+  if (!v) return null;
+  const s = String(v).trim();
+  // already ISO yyyy-mm-dd — return directly, no Date parsing needed
+  if (s.match(/^\d{4}-\d{2}-\d{2}/)) return s.slice(0,10);
+  // GAS long date string e.g. "Mon Feb 09 2026 00:00:00 GMT+0000"
+  // Use UTC methods to avoid timezone shift
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth()+1).padStart(2,'0');
+    const day = String(d.getUTCDate()).padStart(2,'0');
+    return y+'-'+m+'-'+day;
+  }
+  return null;
+}
+
+function parseSheetData(raw) {
+  const newStores = (raw.new_stores || []).map(r => ({
+    storeNo: r.store_no, name: r.name||'', group: r.group_name||'',
+    showDate: normalizeDate(r.show_date),
+    grandOpening: normalizeDate(r.grand_opening),
+    status: r.status||'', type:'open'
+  })).filter(x => x.showDate);
+
+  const renovate = (raw.renovate || []).map(r => ({
+    storeNo: r.store_no, name: r.name||'', group: r.group_name||'',
+    showDate: normalizeDate(r.show_date),
+    closeStatus: r.close_status||'', openStatus: r.open_status||'', type:'reno'
+  })).filter(x => x.showDate);
+
+  const close = (raw.close || []).map(r => ({
+    storeNo: r.store_no, name: r.name||'', group: r.group_name||'',
+    showDate: normalizeDate(r.show_date),
+    status: r.status||'', type:'close'
+  })).filter(x => x.showDate);
+
+  return { newStores, renovate, close };
+}
+
+// ── Save via hidden iframe form POST (bypasses CORS, no URL limit) ──
+function saveToSheets(payload) {
+  setSyncStatus('syncing', 'Saving to Google Sheets…');
+  const lbl = document.getElementById('uploadLabel');
+  lbl.classList.add('saving');
+  lbl.innerHTML = '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v8M3.5 4l3-3 3 3M1 10v1.5A.5.5 0 001.5 12h10a.5.5 0 00.5-.5V10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg> Saving…';
+
+  // create hidden iframe target
+  let iframe = document.getElementById('_gasIframe');
+  if (!iframe) {
+    iframe = document.createElement('iframe');
+    iframe.id = '_gasIframe';
+    iframe.name = '_gasIframe';
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+  }
+
+  // create hidden form
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = GAS_URL;
+  form.target = '_gasIframe';
+  form.style.display = 'none';
+
+  const input = document.createElement('input');
+  input.type = 'hidden';
+  input.name = 'postData';
+  input.value = JSON.stringify(payload);
+  form.appendChild(input);
+  document.body.appendChild(form);
+  form.submit();
+  document.body.removeChild(form);
+
+  // GAS takes ~3s to write — reload after delay
+  setTimeout(async () => {
+    await loadFromSheets();
+    showToast('Saved! All team members will see updated data 🌸');
+    lbl.classList.remove('saving');
+    lbl.innerHTML = '<svg width="13" height="13" viewBox="0 function excelDateStr(v) {
+  if(!v && v !== 0) return null;
+  // Already ISO yyyy-mm-dd
+  if(typeof v==='string' && v.match(/^\d{4}-\d{2}-\d{2}/)) return v.slice(0,10);
+  if(typeof v==='string') {
+    const d = new Date(v);
+    if(!isNaN(d.getTime()) && d.getUTCFullYear() > 1970) {
+      return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
+    }
+    return null;
+  }
+  // Raw Excel serial number (e.g. 46159 = 2026-05-17)
+  const n = parseFloat(v);
+  if(isNaN(n) || n < 40000) return null;
+  const d = new Date(Math.round((n - 25569) * 86400000));
+  if(isNaN(d.getTime())) return null;
+  return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
+}l (e.g. 46062 = 2026-02-09)
+  const n = parseFloat(v);
+  if(isNaN(n) || n < 40000) return null; // valid range: ~2009-2040
+  const d = new Date(Math.round((n - 25569) * 86400000));
+  return isNaN(d.getTime()) ? null : d.toISOString().slice(0,10);
+}
+function addDays(ds, days) {
+  if(!ds) return null;
+  const d = new Date(ds+'T00:00:00'); d.setDate(d.getDate()+days);
+  return d.toISOString().slice(0,10);
+}
+
+document.getElementById('fileInput').addEventListener('change', e => {
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const wb = XLSX.read(ev.target.result, {type:'array'});
+
+      // New store: row0=junk, row1=header, row2+=data
+      // col 0=StoreNo, 1=NameEng, 3=GrandOpening, 4=Status, 6=Group, 11=1stFreshFoodReceive(show_date)
+      const newStores = (() => {
+        const ws = wb.Sheets['New store']; if(!ws) return [];
+        const raw = XLSX.utils.sheet_to_json(ws, {raw:true,defval:'',header:1});
+        return raw.slice(2).map(r => {
+          const sn = Number(r[0]); if(!sn||sn<100) return null;
+          const showDate = excelDateStr(r[11]); if(!showDate) return null;
+          const go = excelDateStr(r[3]);
+          return { store_no:String(sn), name:String(r[1]||'').trim(),
+            group_name:String(r[6]||'').trim(), show_date:showDate,
+            grand_opening:go||'', status:String(r[4]||'Active'), type:'open' };
+        }).filter(Boolean);
+      })();
+
+      // Renovate: row0=header, row1+=data
+      // col 2=StoreNo, 3=NameThai, 4=Group, 5=LastShip(show_date), 7=CloseStatus, 9=OpenStatus
+      const renovate = (() => {
+        const ws = wb.Sheets['Renovate']; if(!ws) return [];
+        const raw = XLSX.utils.sheet_to_json(ws, {raw:true,defval:'',header:1});
+        return raw.slice(1).map(r => {
+          const sn = Number(r[2]); if(!sn||sn<100) return null;
+          const ls = excelDateStr(r[5]); if(!ls) return null;
+          return { store_no:String(sn), name:String(r[3]||'').trim(),
+            group_name:String(r[4]||'').trim(), show_date:ls,
+            close_status:String(r[7]||''), open_status:String(r[9]||''), type:'reno' };
+        }).filter(Boolean);
+      })();
+
+      // Close: row0=header, row1+=data
+      // col 2=StoreNo, 3=NameThai, 4=Group, 5=LastShip(show_date), 7=Status
+      const close = (() => {
+        const ws = wb.Sheets['Close']; if(!ws) return [];
+        const raw = XLSX.utils.sheet_to_json(ws, {raw:true,defval:'',header:1});
+        return raw.slice(1).map(r => {
+          const sn = Number(r[2]); if(!sn||sn<100) return null;
+          const ls = excelDateStr(r[5]); if(!ls) return null;
+          return { store_no:String(sn), name:String(r[3]||'').trim(),
+            group_name:String(r[4]||'').trim(), show_date:ls,
+            status:String(r[7]||''), type:'close' };
+        }).filter(Boolean);
+      })();
+
+      storeData = parseSheetData({ new_stores:newStores, renovate, close });
+      renderCalendar();
+      showToast('Parsed '+newStores.length+' opens · '+renovate.length+' renovate · '+close.length+' close — saving…');
+      saveToSheets({ new_stores:newStores, renovate, close });
+    } catch(err) { showToast('Error: '+err.message, true); }
+  };
+  reader.readAsArrayBuffer(file);
+  e.target.value = '';
+});
+
+// ── Calendar render ──
+function filtered(arr) { return filt==='all' ? arr : arr.filter(x=>x.group===filt); }
+function buildDayMap() {
+  const m = {};
+  const add = x => { if(!x.showDate) return; (m[x.showDate]=m[x.showDate]||[]).push(x); };
+  filtered(storeData.newStores).forEach(add);
+  filtered(storeData.renovate).forEach(add);
+  filtered(storeData.close).forEach(add);
+  return m;
+}
+
+function renderCalendar() {
+  const wrap = document.getElementById('calWrap');
+  wrap.innerHTML = '<div class="calgrid" id="cal"><div class="dh">Sun</div><div class="dh">Mon</div><div class="dh">Tue</div><div class="dh">Wed</div><div class="dh">Thu</div><div class="dh">Fri</div><div class="dh">Sat</div></div>';
+  const cal = document.getElementById('cal');
+  document.getElementById('monthLbl').textContent = MONTHS[curM] + ' ' + curY;
+
+  const dm = buildDayMap();
+  let so=0, sc=0, sr=0;
+  for(const [k,items] of Object.entries(dm)) {
+    const d = new Date(k+'T00:00:00');
+    if(d.getFullYear()===curY && d.getMonth()===curM)
+      items.forEach(x => { if(x.type==='open')so++; else if(x.type==='close')sc++; else sr++; });
+  }
+  document.getElementById('sOpen').textContent = so;
+  document.getElementById('sClose').textContent = sc;
+  document.getElementById('sReno').textContent = sr;
+
+  const first = new Date(curY, curM, 1).getDay();
+  const last = new Date(curY, curM+1, 0).getDate();
+  for(let i=0;i<first;i++){const c=document.createElement('div');c.className='dc other';cal.appendChild(c);}
+  for(let d=1;d<=last;d++){
+    const k = fmtKey(curY, curM, d);
+    const items = dm[k]||[];
+    const opens = items.filter(x=>x.type==='open');
+    const closes = items.filter(x=>x.type==='close');
+    const renos = items.filter(x=>x.type==='reno');
+    const all = [...opens,...closes,...renos];
+    const cell = document.createElement('div');
+    cell.className = 'dc'+(k===TODAY_KEY?' today':'')+(all.length?' ev':'');
+    const top = document.createElement('div'); top.className='dtop';
+    const dn = document.createElement('div'); dn.className='dnum'; dn.textContent=d;
+    const bdg = document.createElement('div'); bdg.className='badge'+(all.length?' show':''); bdg.textContent=all.length;
+    top.appendChild(dn); top.appendChild(bdg); cell.appendChild(top);
+    all.slice(0,2).forEach(it => {
+      const ch = document.createElement('span');
+      ch.className = 'chip '+(it.type==='open'?'co':it.type==='close'?'cc':'cr');
+      const nm = it.name||''; ch.textContent = nm.length>18?nm.slice(0,16)+'…':nm; ch.title=nm;
+      cell.appendChild(ch);
+    });
+    if(all.length>2){const m=document.createElement('span');m.className='chip cm';m.textContent='+'+(all.length-2)+' more';cell.appendChild(m);}
+    if(all.length) cell.addEventListener('click', ()=>openModal(k, items));
+    cal.appendChild(cell);
+  }
+  const tot=first+last, rem=tot%7;
+  if(rem) for(let i=0;i<7-rem;i++){const c=document.createElement('div');c.className='dc other';cal.appendChild(c);}
+}
+
+function openModal(k, items) {
+  const d = new Date(k+'T00:00:00');
+  document.getElementById('mdate').textContent = d.toLocaleDateString('en-GB',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  const body = document.getElementById('mbody'); body.innerHTML='';
+  function sec(label,list,cls){
+    if(!list.length) return;
+    const s=document.createElement('div');
+    const t=document.createElement('div'); t.className='msec-title'; t.textContent=label+' ('+list.length+')'; s.appendChild(t);
+    list.forEach(it => {
+      const el=document.createElement('div'); el.className='mitem m'+cls;
+      let tag='';
+      if(cls==='o') tag='<span class="mtag tgo">Grand Opening: '+(it.grandOpening||'—')+'</span>';
+      else if(cls==='c'){const done=it.status==='ปิดแล้ว';tag='<span class="mtag '+(done?'tcd':'tcp')+'">'+(done?'Closed':'Pending close')+'</span>';}
+      else{const cD=it.closeStatus==='ปิดแล้ว',oO=it.openStatus==='เปิดรับแล้ว';tag='<span class="mtag '+(cD?'trd':'trp')+'">'+(cD?'Store closed':'Not closed yet')+'</span> <span class="mtag '+(oO?'tro':'trp')+'">'+(oO?'Reopened':'Not open yet')+'</span>';}
+      const gb=it.group&&it.group!=='#N/A'?'<span style="font-size:9px;background:#f3eff4;color:var(--muted);padding:1px 5px;border-radius:20px;margin-left:4px">'+it.group+'</span>':'';
+      el.innerHTML='<div class="mname">'+(it.name||'—')+gb+'</div><div class="mmeta">#'+it.storeNo+'</div><div style="margin-top:4px">'+tag+'</div>';
+      s.appendChild(el);
+    });
+    body.appendChild(s);
+  }
+  sec('New Opens',items.filter(x=>x.type==='open'),'o');
+  sec('Closed',items.filter(x=>x.type==='close'),'c');
+  sec('Renovate',items.filter(x=>x.type==='reno'),'r');
+  document.getElementById('overlay').style.display='flex';
+}
+
+document.getElementById('mclose').addEventListener('click',()=>{document.getElementById('overlay').style.display='none';});
+document.getElementById('overlay').addEventListener('click',e=>{if(e.target===document.getElementById('overlay'))document.getElementById('overlay').style.display='none';});
+document.getElementById('prevBtn').addEventListener('click',()=>{curM--;if(curM<0){curM=11;curY--;}renderCalendar();});
+document.getElementById('nextBtn').addEventListener('click',()=>{curM++;if(curM>11){curM=0;curY++;}renderCalendar();});
+document.getElementById('todayBtn').addEventListener('click',()=>{curY=NOW.getFullYear();curM=NOW.getMonth();renderCalendar();});
+document.querySelectorAll('.fbtn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    filt=b.dataset.f;
+    document.querySelectorAll('.fbtn').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); renderCalendar();
+  });
+});
+
+function showToast(msg, err=false) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast show'+(err?' err':'');
+  setTimeout(()=>t.className='toast',3500);
+}
+
+// ── Auto-refresh every 60s ──
+loadFromSheets();
+setInterval(loadFromSheets, 60000);
+</script>
+</body>
+</html>
